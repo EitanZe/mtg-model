@@ -27,6 +27,7 @@ sig Land extends Card {}
 abstract sig Action {
     next: lone Action,
     player: one Player
+    // currTime: lone TIME
 }
 sig playCard extends Action {
     c: lone Card
@@ -42,6 +43,17 @@ sig block extends Action {
 sig endTurn extends Action {}
 sig untap extends Action {}
 
+//Card Locations
+// abstract sig Loc {
+//     cards: pfunc TIME -> set Card
+// }
+
+pred validCast {
+    all p: playCard | {
+        p.c.manaCost <= //number of untapped lands at that time
+
+    }
+}
 
 pred cardsWellInit {
     all c: Creature | {
