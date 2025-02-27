@@ -9,9 +9,32 @@ sig TIME {
 
 //Players
 abstract sig Player {
-    lifeTotal: one Int
+    // lifeTotal: one Int
+    lifeTotal: pfunc TIME -> Int,
+    hand: one Hand,
+    graveyard: one Graveyard,
+    battlefield: one Battlefield,
+    deck: one Deck
 }
 one sig Player1, Player2 extends Player {}
+
+// sig Turn {
+//     boardState: pfunc TIME -> BoardState
+// }
+
+// sig BoardState {
+//     firstAction: one Action
+//     allActions: set Action
+// }
+
+//Card Locations
+abstract sig Loc {
+    cards: set TIME -> Card
+}
+sig Hand extends Loc {}
+sig Battlefield extends Loc {}
+sig Graveyard extends Loc {}
+sig Deck extends Loc {}
 
 //Cards
 abstract sig Card {
@@ -25,9 +48,9 @@ sig Creature extends Card {
 sig Land extends Card {}
 
 abstract sig Action {
-    next: lone Action,
-    player: one Player
-    // currTime: lone TIME
+    nextAction: lone Action,
+    player: one Player,
+    currTime: one TIME
 }
 sig playCard extends Action {
     c: lone Card
@@ -43,15 +66,35 @@ sig block extends Action {
 sig endTurn extends Action {}
 sig untap extends Action {}
 
-//Card Locations
-// abstract sig Loc {
-//     cards: pfunc TIME -> set Card
-// }
+pred separateSpaces {
+    all c: Card, t: TIME, p: Player | {
+        c in p.hand.cards[t] implies c not in (p.battlefield.cards[t] + p.graveyard.cards[t] + p.deck.cards[t])
+        c in p.battlefield.cards[t] implies c not in (p.hand.cards[t] + p.graveyard.cards[t] + p.deck.cards[t])
+        c in p.graveyard.cards[t] implies c not in (p.hand.cards[t] + p.battlefield.cards[t] + p.deck.cards[t])
+        c in p.deck.cards[t] implies c not in (p.hand.cards[t] + p.battlefield.cards[t] + p.graveyard.cards[t])
+    }
+}
+
+pred playerSeparate {
+    some disj p1: Player, p2: Player | {
+        p1.battlefield != p2.battlefield
+        p1.graveyard != p2.graveyard
+        p1.hand != p2.hand
+        p1.deck != p2.deck
+    }
+}
 
 pred validCast {
-    all p: playCard | {
-        p.c.manaCost <= //number of untapped lands at that time
-
+    all c: Card, t: TIME | {
+        some p: Player | {
+            c in p.battlefield.cards[t] implies // if there's a card in a battlefield then it was cast validly (it was in a hand and then in the battlefield right after)
+                {some t2: TIME | {
+                    t2 != t
+                    reachable[t, t2, next]
+                    c in p.hand.cards[t2]
+                    c in p.battlefield.cards[t2.next]
+                }}
+        }
     }
 }
 
@@ -68,23 +111,70 @@ pred cardsWellInit {
 }
 
 pred wellformedGamestart {
-    all p: Player | {
-        p.lifeTotal = 20
+    some firstState: TIME | {
+        all p: Player | {
+            no t: TIME | t.next = firstState //no time before firstState
+            p.lifeTotal[firstState] = 20 //players start with 20 life
+            all b : Battlefield, g: Graveyard | #b.cards[firstState] = 0 and #g.cards[firstState] = 0 //players start with empty battlefields and graveyards
+            #p.hand.cards[firstState] = 3 //players start with 3 cards in hand
+            #p.deck.cards[firstState] = 2 //players start with 2 cards in deck
+        }
     }
 }
 
 pred validActionSequence {
     all a: Action | some p1, p2: Player {
         a.player = p1 implies //don't switch players unless
-        (a.next.player = p1) or (a.next.player = p2 and (a.next in block or a in endTurn)) //blocking or endTurn
+        (a.nextAction.player = p1) or (a.nextAction.player = p2 and (a.nextAction in block or a in endTurn)) //blocking or endTurn
 
         a in endTurn implies //switch players after endTurn
-        a.player != a.next.player
+        a.player != a.nextAction.player
+
+        a.nextAction != a //no action can be the same as the next action
+    }
+}
+
+pred gameEnd {
+    some t: TIME | {
+        some p: Player {
+            p.lifeTotal[t] <= 0
+            no a: Action | reachable[a.currTime, t, next] //no actions after game end
+        }
+    } 
+}
+
+// pred turnSequence {
+//     all end: endTurn | {
+//         end.nextAction implies //if there's a new action after an endTurn
+//         some b: BoardState | {
+//             // b.firstAction in untap
+//             b.firstAction = end.nextAction //that's the beginning of some new turn
+//         }
+//     }
+// }
+
+pred linearActions {
+    all a: Action | {
+        not reachable[a, a, nextAction] //actions aren't reachable from themselves (no cycles)
+    }
+    some firstState: Action | {
+        all a: Action  | {
+            (firstState != a) implies reachable[a, firstState, nextAction] //some first action from which all others reachable
+        }
     }
 }
 
 run {cardsWellInit
     wellformedGamestart
     validActionSequence
-} for exactly 4 Action, 2 endTurn, 6 Int for {next is linear}
+    gameEnd
+    linearActions
+    // separateSpaces
+    validCast
+    playerSeparate
+    some c: Card, p: Player, t: TIME | {
+        c in p.battlefield.cards[t]
+    }
+
+} for exactly 4 Action, 2 endTurn, 8 Loc, 6 Int for {next is linear}
 

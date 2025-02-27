@@ -1,6 +1,6 @@
-**Sigs:** \\
 Card
-***Subsets of cards***
+**_Subsets of cards_**
+
 - Permanents
   - Lands
   - Creatures
@@ -11,23 +11,26 @@ Card
   - Sorceries
   - Instants
 
-***Collections of cards***
+**_Collections of cards_**
+
 - Library
 - Hand
 - Graveyard
 - Battlefield
 - Exile
 
-***Other***
+**_Other_**
+
 - Stack
 - Abilities
 - Player
 - Mana pool
 
-***Phases***
+**_Phases_**
 Turn
+
 - Beginning step
-  - untap *
+  - untap \*
   - upkeep
   - draw
 - Main phase (build, etc.)
@@ -40,6 +43,5 @@ Turn
 - Main phase 2
 - End phase
   - End step
-  - Cleanup step *
-'*' = can't cast instants
-
+  - Cleanup step _
+    '_' = can't cast instants
