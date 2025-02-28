@@ -186,7 +186,7 @@ pred linearActions {
     }
 }
 
-pred oneCreature {
+pred oneCreature { //to make sure there are creatures in the runs
     all b: Battlefield | {
         some t: TIME, c: Creature | {
             c in b.cards[t]
