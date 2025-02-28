@@ -45,7 +45,8 @@ sig Creature extends Card {
     attack: one Int,
     health: one Int
 }
-sig Land extends Card {}
+sig Land extends Card {
+}
 
 abstract sig Action {
     nextAction: lone Action,
@@ -53,12 +54,12 @@ abstract sig Action {
     currTime: one TIME
 }
 sig playCard extends Action {
-    c: lone Card
+    cardCast: lone Card
 }
 // sig castSpell extends playCard {} //for playing lands vs casting creatures
 
 sig declareAttackers extends Action {
-    creatures: set Card
+    attackingCreatures: set Creature
 }
 sig block extends Action {
 
@@ -68,10 +69,21 @@ sig untap extends Action {}
 
 pred separateSpaces {
     all c: Card, t: TIME, p: Player | {
-        c in p.hand.cards[t] implies c not in (p.battlefield.cards[t] + p.graveyard.cards[t] + p.deck.cards[t])
-        c in p.battlefield.cards[t] implies c not in (p.hand.cards[t] + p.graveyard.cards[t] + p.deck.cards[t])
-        c in p.graveyard.cards[t] implies c not in (p.hand.cards[t] + p.battlefield.cards[t] + p.deck.cards[t])
-        c in p.deck.cards[t] implies c not in (p.hand.cards[t] + p.battlefield.cards[t] + p.graveyard.cards[t])
+        c in p.hand.cards[t] implies c not in p.battlefield.cards[t]
+        implies c not in p.graveyard.cards[t]
+        implies c not in p.deck.cards[t]
+
+        c in p.battlefield.cards[t] implies c not in p.hand.cards[t]
+        implies c not in p.graveyard.cards[t] 
+        implies c not in p.deck.cards[t]
+
+        c in p.graveyard.cards[t] implies c not in p.hand.cards[t] 
+        implies c not in p.battlefield.cards[t] 
+        implies c not in p.deck.cards[t]
+
+        c in p.deck.cards[t] implies c not in p.hand.cards[t] 
+        implies c not in p.battlefield.cards[t] 
+        implies c not in p.graveyard.cards[t]
     }
 }
 
@@ -88,11 +100,19 @@ pred validCast {
     all c: Card, t: TIME | {
         some p: Player | {
             c in p.battlefield.cards[t] implies // if there's a card in a battlefield then it was cast validly (it was in a hand and then in the battlefield right after)
-                {some t2: TIME | {
-                    t2 != t
-                    reachable[t, t2, next]
-                    c in p.hand.cards[t2]
-                    c in p.battlefield.cards[t2.next]
+                {some castTime : TIME | {
+                    castTime != t
+                    reachable[t, castTime, next]
+                    c in p.hand.cards[castTime]
+                    c in p.battlefield.cards[castTime.next]
+
+                    //at castTime there are enough untapped lands to afford it
+                    #(p.battlefield.cards[castTime] & Land) >= c.manaCost
+
+                    //some Action casts this card
+                    {some play: playCard | {
+                        play.cardCast = c
+                    }}
                 }}
         }
     }
@@ -104,6 +124,8 @@ pred cardsWellInit {
         c.health <= 15
         c.attack >= 0
         c.attack <= 15
+        c.manaCost >= 0
+        c.manaCost < 13
     }
     all l: Land | {
         l.manaCost = 0
@@ -137,7 +159,7 @@ pred validActionSequence {
 pred gameEnd {
     some t: TIME | {
         some p: Player {
-            p.lifeTotal[t] <= 0
+            p.lifeTotal[t] <= 0 //at some point some player should have no life (does this work???)
             no a: Action | reachable[a.currTime, t, next] //no actions after game end
         }
     } 
@@ -164,17 +186,28 @@ pred linearActions {
     }
 }
 
+pred oneCreature {
+    all b: Battlefield | {
+        some t: TIME, c: Creature | {
+            c in b.cards[t]
+        }
+    }
+}
+
 run {cardsWellInit
     wellformedGamestart
     validActionSequence
     gameEnd
     linearActions
-    // separateSpaces
+    separateSpaces
     validCast
     playerSeparate
     some c: Card, p: Player, t: TIME | {
         c in p.battlefield.cards[t]
     }
 
-} for exactly 4 Action, 2 endTurn, 8 Loc, 6 Int for {next is linear}
+    //make it interesting
+    oneCreature
+
+} for exactly 10 Card, 4 Action, 2 endTurn, 8 Loc, 6 Int for {next is linear}
 
